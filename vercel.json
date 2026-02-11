@@ -1,0 +1,15 @@
+{
+  "rewrites": [
+    { "source": "/reddit-api/:path*", "destination": "/api/reddit-api/:path*" },
+    { "source": "/repology-api/:path*", "destination": "/api/repology-api/:path*" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" }
+      ]
+    }
+  ]
+}
