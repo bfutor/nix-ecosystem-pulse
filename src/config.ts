@@ -5,7 +5,7 @@ export const REFRESH_INTERVAL_MS = import.meta.env.VITE_REFRESH_INTERVAL_MS
   ? Number(import.meta.env.VITE_REFRESH_INTERVAL_MS)
   : undefined;
 
-export const STALE_TIME = 10 * 60 * 1000; // 10 minutes
+export const STALE_TIME = 15 * 60 * 1000; // 15 minutes
 
 // ── GitHub API ─────────────────────────────────────────────────────
 

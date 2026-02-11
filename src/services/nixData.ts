@@ -111,18 +111,9 @@ export async function fetchRepoStats(): Promise<RepoStats> {
 // ── GitHub: Contributors ───────────────────────────────────────────
 
 export async function fetchContributorCount(): Promise<ContributorCount> {
-  try {
-    const { link } = await ghFetchWithLink(
-      `${GITHUB_URLS.contributors}?per_page=1&anon=true`
-    );
-    const count = parseLinkCount(link);
-    if (count > 0) return { total: count };
-  } catch {
-    // nixpkgs is too large for the contributors endpoint — expected
-  }
-  // Best known estimate — nixpkgs is one of the largest OSS projects
-  // GitHub's contributors API says "too large to list" for nixpkgs
-  // Source: git shortlog -sn --no-merges | wc -l on nixpkgs repo
+  // GitHub's contributors API returns 403 for nixpkgs ("too large to list")
+  // so we don't waste an API call. This is a well-known estimate from
+  // git shortlog -sn --no-merges | wc -l on the nixpkgs repo.
   return { total: 6500 };
 }
 
@@ -139,63 +130,43 @@ export interface RepoRanking {
   language: string | null;
 }
 
-const RANKED_REPOS = [
-  'NixOS/nixpkgs',
-  'torvalds/linux',
-  'microsoft/vscode',
-  'flutter/flutter',
-  'kubernetes/kubernetes',
-  'golang/go',
-  'rust-lang/rust',
-  'facebook/react',
-  'tensorflow/tensorflow',
-  'Homebrew/homebrew-core',
-  'nodejs/node',
-  'python/cpython',
-];
+// Known contributor estimates for repos where the API can't compute them
+// These change slowly — updated periodically from git shortlog / GitHub UI
+const CONTRIBUTOR_ESTIMATES: Record<string, number> = {
+  'NixOS/nixpkgs': 6500,
+  'torvalds/linux': 5000,
+  'Homebrew/homebrew-core': 9500,
+  'microsoft/vscode': 2000,
+  'kubernetes/kubernetes': 3800,
+  'rust-lang/rust': 5200,
+  'facebook/react': 1700,
+  'python/cpython': 2800,
+};
 
-async function fetchContributorEstimate(repo: string): Promise<number | null> {
-  try {
-    const { link } = await ghFetchWithLink(
-      `https://api.github.com/repos/${repo}/contributors?per_page=1&anon=true`
-    );
-    const count = parseLinkCount(link);
-    if (count > 0) return count;
-  } catch {
-    // Some repos are too large
-  }
-  // Known estimates for repos that are too large for the API
-  const KNOWN: Record<string, number> = {
-    'NixOS/nixpkgs': 6500,
-    'torvalds/linux': 5000,
-    'Homebrew/homebrew-core': 9500,
-    'Homebrew/homebrew-cask': 7500,
-  };
-  return KNOWN[repo] ?? null;
-}
+const RANKED_REPOS = Object.keys(CONTRIBUTOR_ESTIMATES);
 
 export async function fetchRepoRankings(): Promise<RepoRanking[]> {
-  const results: RepoRanking[] = [];
+  // Fetch all repos in parallel — only 1 API call each (no contributor calls)
+  const settled = await Promise.allSettled(
+    RANKED_REPOS.map((repoName) =>
+      ghFetch<GitHubRepo>(`https://api.github.com/repos/${repoName}`)
+        .then((repoData) => ({
+          name: repoName.split('/')[1],
+          fullName: repoName,
+          stars: repoData.stargazers_count,
+          forks: repoData.forks_count,
+          openIssues: repoData.open_issues_count,
+          description: repoData.description ?? '',
+          contributorEstimate: CONTRIBUTOR_ESTIMATES[repoName] ?? null,
+          language: repoData.language,
+        }))
+    )
+  );
 
-  // Fetch repo data in batches to avoid rate limits
-  for (const repoName of RANKED_REPOS) {
-    try {
-      const [repoData, contribs] = await Promise.all([
-        ghFetch<GitHubRepo>(`https://api.github.com/repos/${repoName}`),
-        fetchContributorEstimate(repoName),
-      ]);
-      results.push({
-        name: repoName.split('/')[1],
-        fullName: repoName,
-        stars: repoData.stargazers_count,
-        forks: repoData.forks_count,
-        openIssues: repoData.open_issues_count,
-        description: repoData.description ?? '',
-        contributorEstimate: contribs,
-        language: repoData.language,
-      });
-    } catch {
-      // Skip repos that fail
+  const results: RepoRanking[] = [];
+  for (const r of settled) {
+    if (r.status === 'fulfilled') {
+      results.push(r.value);
     }
   }
 
