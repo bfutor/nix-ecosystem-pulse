@@ -120,28 +120,8 @@ export async function fetchContributorCount(): Promise<ContributorCount> {
   } catch {
     // nixpkgs is too large for the contributors endpoint — expected
   }
-  // Fallback: use the GitHub Search API to count unique committers
-  // This gives "authors who have committed" which is a reasonable proxy
-  try {
-    const res = await fetch(
-      'https://api.github.com/search/commits?q=repo:NixOS/nixpkgs+committer-date:>2020-01-01&per_page=1',
-      {
-        headers: {
-          ...ghHeaders(),
-          Accept: 'application/vnd.github.cloak-preview+json',
-        },
-      }
-    );
-    if (res.ok) {
-      const data = (await res.json()) as { total_count: number };
-      // total_count here is total commits, not contributors
-      // Use a well-known estimate derived from git shortlog
-      // nixpkgs has ~6,500+ unique contributors as of early 2026
-    }
-  } catch {
-    // ignore
-  }
   // Best known estimate — nixpkgs is one of the largest OSS projects
+  // GitHub's contributors API says "too large to list" for nixpkgs
   // Source: git shortlog -sn --no-merges | wc -l on nixpkgs repo
   return { total: 6500 };
 }

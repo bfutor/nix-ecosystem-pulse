@@ -30,15 +30,27 @@ export const GITHUB_SEARCH_URLS = {
     `${GH}/search/repositories?q=topic:nix+created:>${since}&sort=stars&per_page=5`,
 } as const;
 
+// ── CORS Proxy (for production where Vite proxy isn't available) ───
+
+const isDev = import.meta.env.DEV;
+const CORS_PROXY = 'https://corsproxy.io/?url=';
+
+function proxyUrl(devPrefix: string, prodUrl: string): string {
+  return isDev ? devPrefix : `${CORS_PROXY}${encodeURIComponent(prodUrl)}`;
+}
+
 // ── Repology ───────────────────────────────────────────────────────
 
-export const REPOLOGY_URL = '/repology-api/api/v1/repository/nix_unstable';
+export const REPOLOGY_URL = proxyUrl(
+  '/repology-api/api/v1/repository/nix_unstable',
+  'https://repology.org/api/v1/repository/nix_unstable'
+);
 
 // ── Reddit (via proxy for CORS) ────────────────────────────────────
 
 export const REDDIT_URLS = {
-  about: '/reddit-api/r/NixOS/about.json',
-  hot: '/reddit-api/r/NixOS/hot.json?limit=5',
+  about: proxyUrl('/reddit-api/r/NixOS/about.json', 'https://www.reddit.com/r/NixOS/about.json'),
+  hot: proxyUrl('/reddit-api/r/NixOS/hot.json?limit=5', 'https://www.reddit.com/r/NixOS/hot.json?limit=5'),
 } as const;
 
 // ── Stack Exchange ─────────────────────────────────────────────────
